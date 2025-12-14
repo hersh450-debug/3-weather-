@@ -1,0 +1,192 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2821
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 import React, \{ useState, useEffect, useRef \} from 'react';\
+import \{ OutfitRecommendation \} from '../types';\
+import \{ AMAZON_TAG \} from '../constants';\
+import \{ trackClick \} from '../services/storageService';\
+import \{ generateOutfitImage \} from '../services/geminiService';\
+import \{ Heart, ShoppingBag, Loader2, ChevronDown, ExternalLink, X \} from 'lucide-react';\
+\
+interface OutfitCardProps \{\
+  outfit: OutfitRecommendation;\
+  isFavorite: boolean;\
+  onToggleFavorite: () => void;\
+  userGender?: string;\
+  weatherCondition?: string;\
+\}\
+\
+const OutfitCard: React.FC<OutfitCardProps> = (\{ \
+  outfit, \
+  isFavorite, \
+  onToggleFavorite, \
+  userGender = 'Unisex',\
+  weatherCondition = 'Sunny'\
+\}) => \{\
+  const [imageSrc, setImageSrc] = useState<string | null>(null);\
+  const [loading, setLoading] = useState(false);\
+  const [showShopOptions, setShowShopOptions] = useState(false);\
+  const menuRef = useRef<HTMLDivElement>(null);\
+\
+  useEffect(() => \{\
+    let isMounted = true;\
+\
+    const fetchImage = async () => \{\
+      setLoading(true);\
+      // Fallback to placeholder immediately if needed, but we wait for Imagen first\
+      const generated = await generateOutfitImage(outfit.description, outfit.items, userGender, weatherCondition);\
+      \
+      if (isMounted) \{\
+        if (generated) \{\
+          setImageSrc(generated);\
+        \}\
+        setLoading(false);\
+      \}\
+    \};\
+\
+    fetchImage();\
+\
+    // Click outside to close menu\
+    const handleClickOutside = (event: MouseEvent) => \{\
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) \{\
+        setShowShopOptions(false);\
+      \}\
+    \};\
+    document.addEventListener('mousedown', handleClickOutside);\
+\
+    return () => \{ \
+      isMounted = false;\
+      document.removeEventListener('mousedown', handleClickOutside);\
+    \};\
+  \}, [outfit.id, outfit.description, userGender, weatherCondition, outfit.items]);\
+\
+  const generateAmazonLink = (item: string) => \{\
+    // Construct a specific search query: Gender + Item Details (which now includes color/material)\
+    // We removed the outfit name from here because 'style' can sometimes confuse the Amazon search algo \
+    // when the item name is already very specific (e.g. "Camel Wool Trench Coat")\
+    const searchTerm = `$\{userGender\} $\{item\} clothing`; \
+    const url = `https://www.amazon.com/s?k=$\{encodeURIComponent(searchTerm)\}&tag=$\{AMAZON_TAG\}`;\
+    return url;\
+  \};\
+\
+  const handleShopItemClick = (item: string) => \{\
+    trackClick();\
+    const url = generateAmazonLink(item);\
+    window.open(url, '_blank', 'noopener,noreferrer');\
+  \};\
+\
+  // Use generated image or fallback to picsum\
+  const displayUrl = imageSrc || `https://picsum.photos/seed/$\{outfit.imageKeyword + outfit.id\}/400/300`;\
+\
+  return (\
+    <div className="bg-white rounded-[1.5rem] shadow-xl shadow-gray-200/40 overflow-hidden flex flex-col h-full transition-all hover:scale-[1.01] hover:shadow-2xl duration-500 border border-gray-100 relative">\
+      <div className="relative h-96 bg-gray-100 group">\
+        \{loading ? (\
+          <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-400">\
+            <div className="flex flex-col items-center gap-2">\
+              <Loader2 className="w-6 h-6 animate-spin text-accent opacity-50" />\
+              <span className="text-[10px] font-medium uppercase tracking-widest text-gray-500">Curating...</span>\
+            </div>\
+          </div>\
+        ) : (\
+          <>\
+            <img \
+              src=\{displayUrl\} \
+              alt=\{outfit.name\} \
+              className="w-full h-full object-cover animate-fade-in"\
+            />\
+            \{/* Elegant overlay gradient at bottom of image for text contrast if needed */\}\
+            <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>\
+          </>\
+        )\}\
+        \
+        <button \
+          onClick=\{(e) => \{\
+            e.stopPropagation();\
+            onToggleFavorite();\
+          \}\}\
+          className=\{`absolute top-4 right-4 p-2.5 rounded-full backdrop-blur-sm transition-all duration-300 $\{isFavorite ? 'bg-accent/90 text-white shadow-lg shadow-accent/30' : 'bg-white/80 text-gray-500 hover:text-accent hover:bg-white'\}`\}\
+        >\
+          <Heart className=\{`w-5 h-5 $\{isFavorite ? 'fill-current' : ''\}`\} />\
+        </button>\
+      </div>\
+      \
+      <div className="p-7 flex-1 flex flex-col relative">\
+        <div className="mb-4">\
+           <h3 className="text-2xl font-serif font-bold text-gray-900 mb-2 leading-tight">\{outfit.name\}</h3>\
+           <p className="text-gray-500 text-sm font-light italic">"\{outfit.description\}"</p>\
+        </div>\
+        \
+        <div className="flex-1">\
+          <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 border-b border-gray-100 pb-2">The Collection</h4>\
+          <ul className="space-y-2">\
+            \{outfit.items.map((item, idx) => (\
+              <li \
+                key=\{idx\} \
+                onClick=\{() => handleShopItemClick(item)\}\
+                className="flex items-center justify-between text-sm text-gray-700 group/item cursor-pointer hover:text-accent transition-colors py-1"\
+              >\
+                <div className="flex items-center">\
+                   <span className="w-1 h-1 bg-accent rounded-full mr-3 group-hover/item:w-1.5 group-hover/item:h-1.5 transition-all"></span>\
+                   \{item\}\
+                </div>\
+                <ExternalLink className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />\
+              </li>\
+            ))\}\
+          </ul>\
+        </div>\
+\
+        <div className="mt-8 relative" ref=\{menuRef\}>\
+          <button\
+            onClick=\{() => setShowShopOptions(!showShopOptions)\}\
+            className=\{`w-full group relative flex items-center justify-center gap-2 font-medium py-3.5 px-4 rounded-xl transition-all duration-300 overflow-hidden shadow-lg $\{showShopOptions ? 'bg-gray-800 text-white shadow-gray-800/20' : 'bg-primary hover:bg-black text-white shadow-primary/20 hover:shadow-primary/40'\}`\}\
+          >\
+            <span className="relative z-10 flex items-center gap-2">\
+               <ShoppingBag className="w-4 h-4" />\
+               \{showShopOptions ? 'Close Shop' : 'Shop this Look'\}\
+               <ChevronDown className=\{`w-4 h-4 transition-transform duration-300 $\{showShopOptions ? 'rotate-180' : ''\}`\} />\
+            </span>\
+          </button>\
+\
+          \{/* Shop Options Popover */\}\
+          <div \
+            className=\{`absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden transition-all duration-300 origin-bottom z-20 $\{showShopOptions ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2 pointer-events-none'\}`\}\
+          >\
+            <div className="p-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">\
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Select Item to Shop</span>\
+              <button onClick=\{() => setShowShopOptions(false)\} className="text-gray-400 hover:text-gray-600">\
+                <X className="w-4 h-4" />\
+              </button>\
+            </div>\
+            <div className="max-h-60 overflow-y-auto p-1">\
+              \{outfit.items.map((item, idx) => (\
+                <button\
+                  key=\{idx\}\
+                  onClick=\{() => handleShopItemClick(item)\}\
+                  className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center justify-between group transition-colors text-sm text-gray-700"\
+                >\
+                  <span className="font-medium">\{item\}</span>\
+                  <ExternalLink className="w-3 h-3 text-gray-400 group-hover:text-accent" />\
+                </button>\
+              ))\}\
+              <div className="h-px bg-gray-100 my-1 mx-2"></div>\
+              <button\
+                 onClick=\{() => handleShopItemClick(outfit.name + " style")\}\
+                 className="w-full text-left px-4 py-3 hover:bg-accent/5 rounded-lg flex items-center justify-between group transition-colors text-sm text-accent font-semibold"\
+              >\
+                  <span>Shop Full Style</span>\
+                  <ExternalLink className="w-3 h-3" />\
+              </button>\
+            </div>\
+          </div>\
+        </div>\
+      </div>\
+    </div>\
+  );\
+\};\
+\
+export default OutfitCard;}

@@ -1,0 +1,164 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2821
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 import \{ GoogleGenAI \} from "@google/genai";\
+import \{ WeatherData \} from '../types';\
+\
+const apiKey = process.env.API_KEY || '';\
+const ai = apiKey ? new GoogleGenAI(\{ apiKey \}) : null;\
+\
+/**\
+ * Calculates a "clothing score" / Real Feel based on inputs.\
+ * This is a simplified implementation of apparent temperature logic.\
+ */\
+export const calculateRealFeel = (temp: number, wind: number, humidity: number): number => \{\
+  let realFeel = temp;\
+\
+  // Wind Chill (only valid if temp < 50F and wind > 3mph)\
+  if (temp < 50 && wind > 3) \{\
+    realFeel = 35.74 + (0.6215 * temp) - (35.75 * Math.pow(wind, 0.16)) + (0.4275 * temp * Math.pow(wind, 0.16));\
+  \} \
+  // Heat Index (only valid if temp > 80F)\
+  else if (temp > 80) \{\
+    // Simplified Heat Index formula constants\
+    const c1 = -42.379, c2 = 2.04901523, c3 = 10.14333127;\
+    const c4 = -0.22475541, c5 = -6.83783e-3, c6 = -5.481717e-2;\
+    const c7 = 1.22874e-3, c8 = 8.5282e-4, c9 = -1.99e-6;\
+\
+    realFeel = c1 + (c2 * temp) + (c3 * humidity) + (c4 * temp * humidity) +\
+               (c5 * Math.pow(temp, 2)) + (c6 * Math.pow(humidity, 2)) +\
+               (c7 * Math.pow(temp, 2) * humidity) + (c8 * temp * Math.pow(humidity, 2)) +\
+               (c9 * Math.pow(temp, 2) * Math.pow(humidity, 2));\
+  \}\
+\
+  return Math.round(realFeel);\
+\};\
+\
+export const getRealFeelAdvice = (realFeel: number, wind: number, condition: string): string => \{\
+  let advice = "";\
+  \
+  if (condition.toLowerCase().includes('rain') || condition.toLowerCase().includes('drizzle')) \{\
+    advice += "Don't forget an umbrella or raincoat! ";\
+  \}\
+  if (condition.toLowerCase().includes('snow')) \{\
+    advice += "Waterproof boots are a must today. ";\
+  \}\
+  if (wind > 15) advice += "It's windy, so consider a windbreaker. ";\
+  \
+  if (realFeel < 40) return advice + "Heavy winter coat, scarf, and gloves required.";\
+  if (realFeel < 55) return advice + "Medium coat or heavy jacket with layers.";\
+  if (realFeel < 65) return advice + "Light jacket, sweater, or fleece.";\
+  if (realFeel < 75) return advice + "Long sleeves or a very light layer.";\
+  if (realFeel < 85) return advice + "T-shirt and breathable fabrics.";\
+  return advice + "Light, loose clothing. Stay hydrated!";\
+\};\
+\
+const getFallbackWeather = async (location: string): Promise<WeatherData> => \{\
+   // Simulating network delay\
+  await new Promise(resolve => setTimeout(resolve, 800));\
+\
+  // Generate deterministic-ish random numbers based on string length to mock variety\
+  const baseVal = location.length;\
+  const temp = 40 + (baseVal * 3) % 55; // Range 40-95\
+  const wind = (baseVal * 2) % 25; // Range 0-25\
+  const humidity = 40 + (baseVal * 4) % 60; // Range 40-100\
+\
+  const realFeel = calculateRealFeel(temp, wind, humidity);\
+  const advice = getRealFeelAdvice(realFeel, wind, 'Cloudy');\
+  \
+  return \{\
+    location,\
+    temp,\
+    windSpeed: wind,\
+    humidity,\
+    condition: 'Cloudy (Mock)',\
+    realFeel,\
+    advice,\
+    sources: []\
+  \};\
+\}\
+\
+export const fetchWeather = async (location: string): Promise<WeatherData> => \{\
+  if (!ai) \{\
+    console.warn("No API Key found, using mock weather.");\
+    return getFallbackWeather(location);\
+  \}\
+\
+  try \{\
+    const prompt = `\
+      Find the current weather for $\{location\} right now.\
+      I need accurate real-time data:\
+      1. Temperature (Fahrenheit) - numeric value\
+      2. Humidity (%) - numeric value\
+      3. Wind Speed (mph) - numeric value\
+      4. Current Condition (e.g., Sunny, Light Rain, Heavy Snow, Partly Cloudy)\
+\
+      Return ONLY a raw JSON object (no markdown, no backticks, no code blocks) with the following structure:\
+      \{\
+        "temp": number,\
+        "humidity": number,\
+        "windSpeed": number,\
+        "condition": "string"\
+      \}\
+    `;\
+\
+    const response = await ai.models.generateContent(\{\
+      model: 'gemini-2.5-flash',\
+      contents: prompt,\
+      config: \{\
+        tools: [\{ googleSearch: \{\} \}],\
+        // Note: responseMimeType: 'application/json' is NOT supported with googleSearch\
+      \}\
+    \});\
+\
+    const text = response.text || "";\
+    \
+    // Extract JSON using Regex in case the model includes conversational text\
+    const jsonMatch = text.match(/\\\{[\\s\\S]*\\\}/);\
+    if (!jsonMatch) \{\
+      throw new Error("Failed to parse weather JSON from response");\
+    \}\
+\
+    const data = JSON.parse(jsonMatch[0]);\
+\
+    // Ensure types\
+    const temp = Number(data.temp);\
+    const humidity = Number(data.humidity);\
+    const windSpeed = Number(data.windSpeed);\
+    const condition = data.condition || "Unknown";\
+\
+    if (isNaN(temp)) throw new Error("Invalid temperature data");\
+\
+    const realFeel = calculateRealFeel(temp, windSpeed, humidity);\
+    const advice = getRealFeelAdvice(realFeel, windSpeed, condition);\
+\
+    // Extract sources from grounding metadata\
+    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks\
+      ?.map((chunk: any) => \{\
+        if (chunk.web) \{\
+          return \{ title: chunk.web.title, uri: chunk.web.uri \};\
+        \}\
+        return null;\
+      \})\
+      .filter((s: any) => s) || [];\
+\
+    return \{\
+      location,\
+      temp,\
+      humidity,\
+      windSpeed,\
+      condition,\
+      realFeel,\
+      advice,\
+      sources\
+    \};\
+\
+  \} catch (error) \{\
+    console.error("Weather API Error (Gemini):", error);\
+    return getFallbackWeather(location);\
+  \}\
+\};}

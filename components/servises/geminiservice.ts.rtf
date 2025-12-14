@@ -1,0 +1,120 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2821
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 import \{ GoogleGenAI, Type \} from "@google/genai";\
+import \{ UserPreferences, WeatherData, OutfitRecommendation \} from '../types';\
+import \{ FALLBACK_OUTFITS \} from '../constants';\
+\
+// We use the available key or an empty string. The component will handle the missing key error or fallback.\
+const apiKey = process.env.API_KEY || '';\
+const ai = apiKey ? new GoogleGenAI(\{ apiKey \}) : null;\
+\
+export const generateOutfitRecommendations = async (\
+  weather: WeatherData,\
+  prefs: UserPreferences\
+): Promise<OutfitRecommendation[]> => \{\
+  \
+  if (!ai) \{\
+    console.warn("No API Key found for Gemini. Using fallback data.");\
+    return FALLBACK_OUTFITS.map(o => (\{\
+       ...o, \
+       id: Math.random().toString(36).substring(7) \
+    \}));\
+  \}\
+\
+  try \{\
+    const prompt = `\
+      The user is in $\{weather.location\}.\
+      Current Weather: $\{weather.condition\}, Temperature: $\{weather.temp\}\'b0F, Real Feel: $\{weather.realFeel\}\'b0F.\
+      Wind: $\{weather.windSpeed\} mph, Humidity: $\{weather.humidity\}%.\
+      User Gender: $\{prefs.gender\}.\
+      User Style Preference: $\{prefs.style\}.\
+\
+      Based on the "Real Feel" and weather conditions, suggest 3 distinct, complete outfit recommendations.\
+      CRITICAL INSTRUCTION: For the 'items' list, you MUST include the SPECIFIC COLOR and MATERIAL for EVERY item.\
+      \
+      Bad Example: ["Coat", "Jeans", "Boots"]\
+      Good Example: ["Camel Wool Trench Coat", "Dark Wash Denim Jeans", "Brown Leather Chelsea Boots"]\
+\
+      Return a JSON array.\
+    `;\
+\
+    const response = await ai.models.generateContent(\{\
+      model: 'gemini-2.5-flash',\
+      contents: prompt,\
+      config: \{\
+        responseMimeType: "application/json",\
+        responseSchema: \{\
+          type: Type.ARRAY,\
+          items: \{\
+            type: Type.OBJECT,\
+            properties: \{\
+              name: \{ type: Type.STRING, description: "A catchy name for this look" \},\
+              description: \{ type: Type.STRING, description: "Why this works for the weather" \},\
+              items: \{ \
+                type: Type.ARRAY, \
+                items: \{ type: Type.STRING \},\
+                description: "List of 3-5 specific clothing pieces including Color and Material"\
+              \},\
+              imageKeyword: \{ type: Type.STRING, description: "A single broad keyword to find a stock image (e.g. 'winter coat', 'summer dress')"\}\
+            \},\
+            required: ["name", "description", "items", "imageKeyword"]\
+          \}\
+        \}\
+      \}\
+    \});\
+\
+    const jsonText = response.text;\
+    if (!jsonText) throw new Error("Empty response from AI");\
+\
+    const parsed = JSON.parse(jsonText);\
+    \
+    // Add IDs to the result\
+    return parsed.map((item: any) => (\{\
+      ...item,\
+      id: Math.random().toString(36).substring(7)\
+    \}));\
+\
+  \} catch (error) \{\
+    console.error("Gemini API Error:", error);\
+    return FALLBACK_OUTFITS.map(o => (\{\
+       ...o, \
+       id: Math.random().toString(36).substring(7) \
+    \}));\
+  \}\
+\};\
+\
+export const generateOutfitImage = async (outfitDescription: string, items: string[], gender: string, weatherCondition: string): Promise<string | null> => \{\
+  if (!ai) return null;\
+  \
+  try \{\
+    // Enhanced prompt for full body model\
+    const prompt = `\
+      Professional fashion photography. Full body shot of a $\{gender\} model wearing this outfit: $\{items.join(', ')\}.\
+      Style: $\{outfitDescription\}.\
+      Setting: An outdoor environment that matches the weather condition "$\{weatherCondition\}".\
+      Lighting: Natural, cinematic lighting.\
+      Quality: 8k, highly detailed, photorealistic, editorial fashion magazine style.\
+    `;\
+    \
+    const response = await ai.models.generateImages(\{\
+      model: 'imagen-4.0-generate-001',\
+      prompt: prompt,\
+      config: \{\
+        numberOfImages: 1,\
+        outputMimeType: 'image/jpeg',\
+        aspectRatio: '3:4', // Portrait aspect ratio is better for full body shots\
+      \},\
+    \});\
+\
+    const base64 = response.generatedImages?.[0]?.image?.imageBytes;\
+    return base64 ? `data:image/jpeg;base64,$\{base64\}` : null;\
+  \} catch (error) \{\
+    console.error("Imagen API Error:", error);\
+    return null;\
+  \}\
+\};}

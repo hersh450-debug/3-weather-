@@ -1,0 +1,257 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2821
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww28600\viewh15160\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 import React, \{ useState, useEffect \} from 'react';\
+import \{ HashRouter, Routes, Route, Link \} from 'react-router-dom';\
+import \{ Wind, Thermometer, User, Sparkles \} from 'lucide-react';\
+\
+import WeatherInput from './components/WeatherInput';\
+import OutfitCard from './components/OutfitCard';\
+import AdminPanel from './components/AdminPanel';\
+\
+import \{ WeatherData, OutfitRecommendation, UserPreferences, Gender, Style, SavedOutfit \} from './types';\
+import \{ fetchWeather \} from './services/weatherService';\
+import \{ generateOutfitRecommendations \} from './services/geminiService';\
+import \{ getFavorites, toggleFavorite \} from './services/storageService';\
+\
+const MainApp: React.FC = () => \{\
+  const [preferences, setPreferences] = useState<UserPreferences>(\{\
+    location: '',\
+    gender: Gender.Unisex,\
+    style: Style.Casual,\
+  \});\
+\
+  const [weather, setWeather] = useState<WeatherData | null>(null);\
+  const [outfits, setOutfits] = useState<OutfitRecommendation[]>([]);\
+  const [favorites, setFavorites] = useState<SavedOutfit[]>([]);\
+  const [loading, setLoading] = useState(false);\
+  const [error, setError] = useState('');\
+\
+  useEffect(() => \{\
+    setFavorites(getFavorites());\
+  \}, []);\
+\
+  const handleSearch = async () => \{\
+    setLoading(true);\
+    setError('');\
+    setOutfits([]);\
+    setWeather(null);\
+\
+    try \{\
+      // 1. Get Weather (Now using Real-time Gemini Search)\
+      const weatherData = await fetchWeather(preferences.location);\
+      setWeather(weatherData);\
+\
+      // 2. Get AI Recommendations based on weather & prefs\
+      const recs = await generateOutfitRecommendations(weatherData, preferences);\
+      setOutfits(recs);\
+\
+    \} catch (err) \{\
+      setError('Something went wrong fetching data. Please try again.');\
+      console.error(err);\
+    \} finally \{\
+      setLoading(false);\
+    \}\
+  \};\
+\
+  const handleFavoriteToggle = (outfit: OutfitRecommendation) => \{\
+    if (!weather) return;\
+    \
+    const savedItem: SavedOutfit = \{\
+      ...outfit,\
+      savedAt: Date.now(),\
+      weatherContext: `$\{weather.condition\}, $\{weather.temp\}\'b0F`\
+    \};\
+    \
+    const newFavorites = toggleFavorite(savedItem);\
+    setFavorites(newFavorites);\
+  \};\
+\
+  // Helper to determine the temperature label\
+  const getTempLabel = (temp: number) => \{\
+    if (temp >= 85) return 'Hot';\
+    if (temp >= 70) return 'Warm';\
+    if (temp >= 55) return 'Cool';\
+    if (temp >= 32) return 'Cold';\
+    return 'Freezing';\
+  \};\
+\
+  return (\
+    <div className="min-h-screen flex flex-col font-sans text-gray-800">\
+      \{/* Hero Section with Background Image */\}\
+      <div className="relative bg-primary text-white h-[500px] md:h-[600px] flex items-center justify-center overflow-hidden">\
+        \{/* Background Image */\}\
+        <div \
+          className="absolute inset-0 z-0 bg-cover bg-center"\
+          style=\{\{ \
+            // Updated to a new classy outdoor lifestyle fashion image\
+            backgroundImage: 'url("https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=2000&auto=format&fit=crop")',\
+            filter: 'brightness(0.55)'\
+          \}\}\
+        ></div>\
+        \
+        \{/* Gradient Overlay for style */\}\
+        <div className="absolute inset-0 z-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>\
+\
+        <div className="relative z-10 max-w-4xl mx-auto text-center px-6 -mt-10">\
+          <div className="inline-flex items-center justify-center gap-2 mb-6 border border-white/30 bg-white/10 backdrop-blur-md px-6 py-2 rounded-full">\
+            <Sparkles className="w-4 h-4 text-accent" />\
+            <span className="text-sm font-medium tracking-widest uppercase">Real Weather Wear</span>\
+          </div>\
+          \
+          <h1 className="text-5xl md:text-7xl font-serif font-bold mb-6 leading-tight drop-shadow-2xl">\
+             Dress for how it feels,<br />\
+             <span className="italic font-light text-gray-200">not just the forecast.</span>\
+          </h1>\
+          \
+          <p className="text-xl md:text-2xl text-gray-100 font-light max-w-2xl mx-auto drop-shadow-md">\
+            Go outside with confidence.\
+          </p>\
+        </div>\
+      </div>\
+\
+      <div className="flex-grow px-6 pb-24 -mt-20 relative z-20">\
+        <WeatherInput \
+          preferences=\{preferences\} \
+          onPreferencesChange=\{setPreferences\}\
+          onSearch=\{handleSearch\}\
+          isLoading=\{loading\}\
+        />\
+\
+        \{/* Error Message */\}\
+        \{error && (\
+          <div className="max-w-3xl mx-auto mt-8 p-4 bg-red-50 border border-red-100 text-red-700 rounded-xl text-center">\
+            \{error\}\
+          </div>\
+        )\}\
+\
+        \{/* Results Section */\}\
+        \{weather && (\
+          <div className="max-w-6xl mx-auto mt-16 animate-fade-in">\
+            \
+            \{/* Weather Display - Updated Design */\}\
+            <div className="mb-16 text-center">\
+              <div className="inline-block bg-white px-10 py-8 rounded-[2rem] shadow-xl shadow-gray-200/50 border border-white">\
+                <h2 className="text-3xl font-serif font-bold text-gray-800 mb-2">\{weather.location\}</h2>\
+                <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12 my-6">\
+                  <div className="flex flex-col items-center">\
+                    <Thermometer className="w-5 h-5 text-gray-400 mb-1" />\
+                    <span className="text-4xl font-light text-gray-900">\{weather.temp\}\'b0</span>\
+                    <span className="text-xs text-gray-400 uppercase tracking-wider">Actual</span>\
+                  </div>\
+                  <div className="w-px h-12 bg-gray-200 hidden md:block"></div>\
+                  <div className="flex flex-col items-center relative">\
+                    <div className="absolute -top-3 -right-3 bg-accent text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">\
+                      \{getTempLabel(weather.realFeel)\}\
+                    </div>\
+                    <User className="w-5 h-5 text-accent mb-1" />\
+                    <span className="text-4xl font-bold text-gray-900">\{weather.realFeel\}\'b0</span>\
+                    <span className="text-xs text-accent font-bold uppercase tracking-wider">Real Feel</span>\
+                  </div>\
+                  <div className="w-px h-12 bg-gray-200 hidden md:block"></div>\
+                  <div className="flex flex-col items-center">\
+                    <Wind className="w-5 h-5 text-gray-400 mb-1" />\
+                    <span className="text-2xl font-medium text-gray-700">\{weather.windSpeed\} <span className="text-xs font-normal">mph</span></span>\
+                    <span className="text-xs text-gray-400 uppercase tracking-wider">Wind</span>\
+                  </div>\
+                </div>\
+                <p className="text-gray-600 bg-slate-50 py-3 px-6 rounded-full inline-block text-sm border border-slate-100 italic font-serif">\
+                   "\{weather.advice\}"\
+                </p>\
+\
+                \{/* Sources Display */\}\
+                \{weather.sources && weather.sources.length > 0 && (\
+                  <div className="mt-4 text-xs text-gray-400">\
+                    <span>Sources: </span>\
+                    \{weather.sources.map((source, idx) => (\
+                      <span key=\{idx\}>\
+                        <a href=\{source.uri\} target="_blank" rel="noopener noreferrer" className="hover:text-accent underline">\
+                          \{source.title || new URL(source.uri).hostname\}\
+                        </a>\
+                        \{idx < (weather.sources?.length || 0) - 1 && ", "\}\
+                      </span>\
+                    ))\}\
+                  </div>\
+                )\}\
+              </div>\
+            </div>\
+\
+            \{/* Outfits Grid */\}\
+            <div className="flex items-center gap-4 mb-8">\
+               <h3 className="text-3xl font-serif font-bold text-gray-900">Recommended Styles</h3>\
+               <div className="h-px bg-gray-200 flex-grow"></div>\
+               <span className="text-sm text-gray-400 uppercase tracking-widest font-medium">Curated for you</span>\
+            </div>\
+            \
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10">\
+              \{outfits.map((outfit) => (\
+                <OutfitCard\
+                  key=\{outfit.id\}\
+                  outfit=\{outfit\}\
+                  isFavorite=\{favorites.some(f => f.id === outfit.id)\}\
+                  onToggleFavorite=\{() => handleFavoriteToggle(outfit)\}\
+                  userGender=\{preferences.gender\}\
+                  weatherCondition=\{weather.condition\}\
+                />\
+              ))\}\
+            </div>\
+          </div>\
+        )\}\
+\
+        \{/* Favorites Section (if any exist) */\}\
+        \{!weather && favorites.length > 0 && (\
+          <div className="max-w-6xl mx-auto mt-24">\
+            <div className="flex items-center gap-4 mb-8">\
+               <h3 className="text-3xl font-serif font-bold text-gray-900">Your Wardrobe</h3>\
+               <div className="h-px bg-gray-200 flex-grow"></div>\
+            </div>\
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">\
+              \{favorites.map((fav) => (\
+                <OutfitCard\
+                  key=\{fav.id\}\
+                  outfit=\{fav\}\
+                  isFavorite=\{true\}\
+                  onToggleFavorite=\{() => handleFavoriteToggle(fav)\}\
+                  // Pass saved preferences if available, or defaults for favorites\
+                  userGender=\{preferences.gender\}\
+                  weatherCondition=\{fav.weatherContext\}\
+                />\
+              ))\}\
+            </div>\
+          </div>\
+        )\}\
+\
+      </div>\
+\
+      <footer className="bg-white border-t border-gray-100 py-12 mt-auto">\
+        <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center text-center md:text-left">\
+          <div className="mb-4 md:mb-0">\
+            <h4 className="font-serif font-bold text-lg text-gray-900">Real Weather Wear</h4>\
+            <p className="text-sm text-gray-500 mt-1">Dress for the moment, not just the forecast.</p>\
+          </div>\
+          <div className="flex flex-col items-center md:items-end">\
+            <p className="text-xs text-gray-400">\'a9 2024 Real Weather Wear. Affiliate links support this project.</p>\
+            <Link to="/admin" className="text-xs text-gray-300 hover:text-gray-600 transition-colors mt-2">Admin Panel</Link>\
+          </div>\
+        </div>\
+      </footer>\
+    </div>\
+  );\
+\};\
+\
+const App: React.FC = () => \{\
+  return (\
+    <HashRouter>\
+      <Routes>\
+        <Route path="/" element=\{<MainApp />\} />\
+        <Route path="/admin" element=\{<AdminPanel />\} />\
+      </Routes>\
+    </HashRouter>\
+  );\
+\};\
+\
+export default App;}

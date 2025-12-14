@@ -1,0 +1,49 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2821
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 import \{ SavedOutfit \} from '../types';\
+import \{ LOCAL_STORAGE_FAVES_KEY, LOCAL_STORAGE_CLICKS_KEY \} from '../constants';\
+\
+export const getFavorites = (): SavedOutfit[] => \{\
+  try \{\
+    const stored = localStorage.getItem(LOCAL_STORAGE_FAVES_KEY);\
+    return stored ? JSON.parse(stored) : [];\
+  \} catch (e) \{\
+    console.error("Failed to load favorites", e);\
+    return [];\
+  \}\
+\};\
+\
+export const toggleFavorite = (outfit: SavedOutfit): SavedOutfit[] => \{\
+  const current = getFavorites();\
+  const exists = current.find(o => o.id === outfit.id);\
+  \
+  let updated;\
+  if (exists) \{\
+    updated = current.filter(o => o.id !== outfit.id);\
+  \} else \{\
+    updated = [outfit, ...current];\
+  \}\
+  \
+  localStorage.setItem(LOCAL_STORAGE_FAVES_KEY, JSON.stringify(updated));\
+  return updated;\
+\};\
+\
+export const trackClick = () => \{\
+  try \{\
+    const currentRaw = localStorage.getItem(LOCAL_STORAGE_CLICKS_KEY);\
+    const currentCount = currentRaw ? parseInt(currentRaw, 10) : 0;\
+    localStorage.setItem(LOCAL_STORAGE_CLICKS_KEY, (currentCount + 1).toString());\
+  \} catch (e) \{\
+    console.error("Failed to track click", e);\
+  \}\
+\};\
+\
+export const getClickCount = (): number => \{\
+  const currentRaw = localStorage.getItem(LOCAL_STORAGE_CLICKS_KEY);\
+  return currentRaw ? parseInt(currentRaw, 10) : 0;\
+\};}
